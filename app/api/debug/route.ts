@@ -11,6 +11,8 @@ export async function GET() {
     dbError = e.message
   }
 
+  const rawUrl = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL ?? ''
+
   return NextResponse.json({
     DATABASE_URL: process.env.DATABASE_URL ? 'set' : 'missing',
     DATABASE_URL_UNPOOLED: process.env.DATABASE_URL_UNPOOLED ? 'set' : 'missing',
@@ -19,5 +21,10 @@ export async function GET() {
     NODE_ENV: process.env.NODE_ENV,
     dbTest,
     dbError,
+    urlDiag: {
+      length: rawUrl.length,
+      startsWithQuote: rawUrl.startsWith('"') || rawUrl.startsWith("'"),
+      prefix: rawUrl.substring(0, 20),
+    },
   })
 }
