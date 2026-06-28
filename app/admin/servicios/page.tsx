@@ -1,6 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { QRCodeDisplay } from '../QRCodeDisplay'
+
+const BASE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://crs-flax.vercel.app'
 
 type Service = {
   id: string
@@ -8,6 +11,7 @@ type Service = {
   type: string
   date: string
   isOpen: boolean
+  qrToken: string
   _count: { attendances: number }
 }
 
@@ -236,6 +240,12 @@ export default function ServiciosPage() {
               </button>
             </div>
             <div className="overflow-y-auto flex-1">
+              {/* QR Code */}
+              {selectedService && (
+                <div className="py-4 border-b border-gray-100">
+                  <QRCodeDisplay url={`${BASE_URL}/checkin/${selectedService.qrToken}`} />
+                </div>
+              )}
               {loadingAttendees ? (
                 <p className="text-center text-gray-400 text-sm py-8">Cargando...</p>
               ) : attendees.length === 0 ? (

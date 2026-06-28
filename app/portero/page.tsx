@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useRef, useState } from 'react'
 
 type Service = { id: string; name: string; type: string; date: string }
-type Person = { id: string; firstName: string; lastName: string; type: string; phone: string | null }
+type Person = { id: string; firstName: string; lastName: string; type: string; phone: string | null; photoUrl?: string | null }
 
 const ARRIVAL_OPTIONS = [
   { value: '', label: 'Seleccionar...' },
@@ -26,6 +26,7 @@ const EMPTY_FORM = {
   address: '',
   neighborhood: '',
   howTheyArrived: '',
+  photoUrl: '',
 }
 
 // Shared input class — dark text, visible border, large touch target
@@ -144,6 +145,7 @@ export default function PorteroPage() {
           address: form.address.trim() || null,
           neighborhood: form.neighborhood.trim() || null,
           howTheyArrived: form.howTheyArrived || null,
+          photoUrl: form.photoUrl || null,
           invitedById: selectedInviter?.id ?? null,
         }),
       })
@@ -275,14 +277,23 @@ export default function PorteroPage() {
                   : 'bg-white border-[#D1D5DB] hover:bg-blue-50 hover:border-blue-300 hover:shadow-md'
               }`}
             >
-              <div className="min-w-0">
-                <p className="text-lg md:text-xl font-semibold text-[#111] truncate">
-                  {person.firstName} {person.lastName}
-                </p>
-                <p className="text-sm text-gray-500 mt-0.5">
-                  {person.type === 'MEMBER' ? 'Miembro' : 'Visitante'}
-                  {person.phone ? ` · ${person.phone}` : ''}
-                </p>
+              <div className="flex items-center gap-3 min-w-0">
+                {person.photoUrl ? (
+                  <img src={person.photoUrl} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-700 shrink-0">
+                    {person.firstName[0]}{person.lastName[0]}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="text-lg md:text-xl font-semibold text-[#111] truncate">
+                    {person.firstName} {person.lastName}
+                  </p>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    {person.type === 'MEMBER' ? 'Miembro' : 'Visitante'}
+                    {person.phone ? ` · ${person.phone}` : ''}
+                  </p>
+                </div>
               </div>
               <span className="ml-4 shrink-0">
                 {isRegistered ? (
@@ -334,6 +345,37 @@ export default function PorteroPage() {
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4">Datos básicos</p>
                 <div className="space-y-4">
+
+                  {/* Photo capture */}
+                  <div>
+                    <label className={LABEL}>Foto (opcional)</label>
+                    <div className="flex items-center gap-3">
+                      {form.photoUrl ? (
+                        <img src={form.photoUrl} alt="Foto" className="w-16 h-16 rounded-full object-cover border border-gray-200" />
+                      ) : (
+                        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-2xl">📷</div>
+                      )}
+                      <label className="cursor-pointer px-4 py-2.5 rounded-xl border border-[#D1D5DB] text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                        {form.photoUrl ? 'Cambiar foto' : 'Tomar foto'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="user"
+                          className="hidden"
+                          onChange={e => {
+                            const file = e.target.files?.[0]
+                            if (!file) return
+                            const reader = new FileReader()
+                            reader.onload = ev => setField('photoUrl', ev.target?.result as string)
+                            reader.readAsDataURL(file)
+                          }}
+                        />
+                      </label>
+                      {form.photoUrl && (
+                        <button type="button" onClick={() => setField('photoUrl', '')} className="text-gray-400 hover:text-red-500 text-lg">✕</button>
+                      )}
+                    </div>
+                  </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>

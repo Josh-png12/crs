@@ -6,9 +6,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const session = await auth()
   if (!session) redirect('/login')
 
+  const role = (session.user as { role?: string })?.role ?? ''
+
   return (
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden">
-      <SidebarNav userName={session.user?.name ?? 'Admin'} />
+      <SidebarNav userName={session.user?.name ?? 'Admin'} role={role} />
       <main className="flex-1 overflow-y-auto">
         {children}
       </main>

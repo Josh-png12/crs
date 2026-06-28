@@ -22,6 +22,7 @@ type Person = {
   status: 'ACTIVE' | 'INACTIVE'
   joinedAt: string | null
   createdAt: string
+  photoUrl: string | null
   attendances: { id: string; createdAt: string; service: { name: string; date: string; type: string } }[]
 }
 
@@ -48,6 +49,7 @@ export default function PersonDetailPage() {
     type: 'VISITOR' as 'MEMBER' | 'VISITOR',
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
     joinedAt: '',
+    photoUrl: '',
   })
 
   useEffect(() => {
@@ -73,6 +75,7 @@ export default function PersonDetailPage() {
         type: personData.type,
         status: personData.status,
         joinedAt: personData.joinedAt ? personData.joinedAt.split('T')[0] : '',
+        photoUrl: personData.photoUrl ?? '',
       })
     }).finally(() => setLoading(false))
   }, [id])
@@ -105,6 +108,7 @@ export default function PersonDetailPage() {
           neighborhood: form.neighborhood || null,
           city: form.city || null,
           joinedAt: form.joinedAt || null,
+          photoUrl: form.photoUrl || null,
         }),
       })
       showToast('Cambios guardados ✓')
@@ -174,8 +178,11 @@ export default function PersonDetailPage() {
           <Link href="/admin/personas" className="text-gray-400 hover:text-gray-600 text-sm">
             ← Personas
           </Link>
-          <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-lg shrink-0">
-            {person.firstName[0]}{person.lastName[0]}
+          <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-lg shrink-0 overflow-hidden">
+            {form.photoUrl
+              ? <img src={form.photoUrl} alt="foto" className="w-full h-full object-cover" />
+              : <>{person.firstName[0]}{person.lastName[0]}</>
+            }
           </div>
           <div>
             <h1 className="text-xl font-bold text-gray-900">{person.firstName} {person.lastName}</h1>
@@ -273,6 +280,39 @@ export default function PersonDetailPage() {
               <div className="col-span-2">
                 <label className={LABEL}>Ocupación</label>
                 <input className={INPUT} placeholder="—" value={form.occupation} onChange={e => setField('occupation', e.target.value)} />
+              </div>
+              <div className="col-span-2">
+                <label className={LABEL}>Foto</label>
+                <div className="flex items-center gap-3">
+                  {form.photoUrl && (
+                    <img src={form.photoUrl} alt="foto" className="w-14 h-14 rounded-full object-cover border border-gray-200" />
+                  )}
+                  <label className="cursor-pointer px-3 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                    {form.photoUrl ? 'Cambiar foto' : 'Tomar / subir foto'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="user"
+                      className="hidden"
+                      onChange={e => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        const reader = new FileReader()
+                        reader.onload = ev => setField('photoUrl', ev.target?.result as string)
+                        reader.readAsDataURL(file)
+                      }}
+                    />
+                  </label>
+                  {form.photoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setField('photoUrl', '')}
+                      className="text-xs text-red-500 hover:text-red-700"
+                    >
+                      Quitar
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>

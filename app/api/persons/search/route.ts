@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
       lastName: true,
       type: true,
       phone: true,
+      photoUrl: true,
     },
     take: 20,
     orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],

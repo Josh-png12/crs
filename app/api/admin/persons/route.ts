@@ -18,6 +18,7 @@ export async function GET() {
       status: true,
       joinedAt: true,
       createdAt: true,
+      photoUrl: true,
     },
   })
 

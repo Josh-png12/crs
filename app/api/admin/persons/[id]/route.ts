@@ -34,7 +34,7 @@ export async function PUT(request: NextRequest, ctx: RouteContext<'/api/admin/pe
   const {
     firstName, lastName, phone, whatsapp, email, birthDate, gender,
     address, neighborhood, city, type, status, joinedAt,
-    maritalStatus, occupation,
+    maritalStatus, occupation, photoUrl,
   } = body
 
   const person = await prisma.person.update({
@@ -55,6 +55,7 @@ export async function PUT(request: NextRequest, ctx: RouteContext<'/api/admin/pe
       joinedAt: joinedAt ? new Date(joinedAt) : null,
       maritalStatus: maritalStatus || null,
       occupation: occupation || null,
+      photoUrl: photoUrl || null,
     },
   })
 
