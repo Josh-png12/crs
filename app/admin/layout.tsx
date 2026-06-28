@@ -7,7 +7,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!session) redirect('/login')
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen bg-[#F8FAFC] overflow-hidden">
       <SidebarNav userName={session.user?.name ?? 'Admin'} />
       <main className="flex-1 overflow-y-auto">
         {children}

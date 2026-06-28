@@ -31,8 +31,11 @@ export async function PUT(request: NextRequest, ctx: RouteContext<'/api/admin/pe
   const { id } = await ctx.params
   const body = await request.json()
 
-  const { firstName, lastName, phone, whatsapp, email, birthDate, gender,
-          address, neighborhood, city, type, status, joinedAt } = body
+  const {
+    firstName, lastName, phone, whatsapp, email, birthDate, gender,
+    address, neighborhood, city, type, status, joinedAt,
+    maritalStatus, occupation,
+  } = body
 
   const person = await prisma.person.update({
     where: { id },
@@ -50,6 +53,8 @@ export async function PUT(request: NextRequest, ctx: RouteContext<'/api/admin/pe
       type,
       status,
       joinedAt: joinedAt ? new Date(joinedAt) : null,
+      maritalStatus: maritalStatus || null,
+      occupation: occupation || null,
     },
   })
 

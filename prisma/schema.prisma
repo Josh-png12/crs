@@ -30,6 +30,9 @@ model Person {
 
   photoUrl        String?
   howTheyArrived  String?
+  maritalStatus   String?
+  occupation      String?
+  firstVisitId    String?
 
   type            PersonType  @default(VISITOR)
   status          Status      @default(ACTIVE)
