@@ -54,6 +54,11 @@ export default function ServiciosPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newService),
       })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        alert(err.error ?? `Error ${res.status} al crear servicio`)
+        return
+      }
       const created: Service = await res.json()
       setServices(s => [created, ...s])
       setShowCreate(false)
@@ -82,7 +87,7 @@ export default function ServiciosPage() {
     setLoadingAttendees(false)
   }
 
-  const fieldClass = 'w-full px-3.5 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white'
+  const fieldClass = 'w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-5">
