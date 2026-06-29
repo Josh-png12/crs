@@ -2,7 +2,8 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { savePendingAttendance, getPendingAttendances, deletePendingAttendance } from '@/lib/offline-db'
 
 type Service = { id: string; name: string; type: string; date: string }
 type Person = { id: string; firstName: string; lastName: string; type: string; phone: string | null; photoUrl?: string | null }
@@ -29,7 +30,6 @@ const EMPTY_FORM = {
   photoUrl: '',
 }
 
-// Shared input class — dark text, visible border, large touch target
 const INPUT =
   'w-full text-[#111] text-base md:text-lg px-4 py-3.5 rounded-xl border border-[#D1D5DB] bg-white placeholder:text-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors'
 
@@ -61,8 +61,72 @@ export default function PorteroPage() {
   // ── Toast ─────────────────────────────────────────────────────
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
+  // ── Offline ───────────────────────────────────────────────────
+  const [isOnline, setIsOnline] = useState(true)
+  const [pendingCount, setPendingCount] = useState(0)
+  const [syncing, setSyncing] = useState(false)
+
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inviterTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function showToast(msg: string, ok = true) {
+    setToast({ msg, ok })
+    setTimeout(() => setToast(null), 3500)
+  }
+
+  const syncPendingAttendances = useCallback(async () => {
+    const pending = await getPendingAttendances()
+    if (pending.length === 0) return 0
+
+    setSyncing(true)
+    let synced = 0
+    for (const item of pending) {
+      try {
+        await fetch('/api/attendance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ personId: item.personId, serviceId: item.serviceId, method: item.method }),
+        })
+        await deletePendingAttendance(item.id)
+        synced++
+      } catch {
+        // Still offline for this item — leave it
+      }
+    }
+    setSyncing(false)
+    const remaining = await getPendingAttendances()
+    setPendingCount(remaining.length)
+    return synced
+  }, [])
+
+  // Service worker + online/offline + pending count
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {})
+    }
+
+    setIsOnline(navigator.onLine)
+    getPendingAttendances().then(p => setPendingCount(p.length))
+
+    const handleOnline = async () => {
+      setIsOnline(true)
+      const pending = await getPendingAttendances()
+      if (pending.length > 0) {
+        showToast(`Conexión restaurada — sincronizando ${pending.length} registro${pending.length > 1 ? 's' : ''}...`)
+        const synced = await syncPendingAttendances()
+        if (synced > 0) showToast(`${synced} registro${synced > 1 ? 's' : ''} sincronizado${synced > 1 ? 's' : ''} ✓`)
+      }
+    }
+
+    const handleOffline = () => setIsOnline(false)
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [syncPendingAttendances])
 
   // Load active services
   useEffect(() => {
@@ -72,6 +136,7 @@ export default function PorteroPage() {
         setServices(data)
         if (data.length === 1) setActiveService(data[0])
       })
+      .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
@@ -84,6 +149,8 @@ export default function PorteroPage() {
       try {
         const res = await fetch(`/api/persons/search?q=${encodeURIComponent(query)}`)
         setPersons(await res.json())
+      } catch {
+        setPersons([])
       } finally {
         setSearching(false)
       }
@@ -96,21 +163,36 @@ export default function PorteroPage() {
     if (inviterTimer.current) clearTimeout(inviterTimer.current)
     if (!inviterQuery.trim()) { setInviterResults([]); return }
     inviterTimer.current = setTimeout(async () => {
-      const res = await fetch(`/api/persons/search?q=${encodeURIComponent(inviterQuery)}`)
-      setInviterResults(await res.json())
+      try {
+        const res = await fetch(`/api/persons/search?q=${encodeURIComponent(inviterQuery)}`)
+        setInviterResults(await res.json())
+      } catch {
+        setInviterResults([])
+      }
     }, 300)
     return () => { if (inviterTimer.current) clearTimeout(inviterTimer.current) }
   }, [inviterQuery])
-
-  function showToast(msg: string, ok = true) {
-    setToast({ msg, ok })
-    setTimeout(() => setToast(null), 3000)
-  }
 
   async function checkIn(person: Person) {
     if (!activeService) return
     setCheckingIn(person.id)
     try {
+      if (!isOnline) {
+        // Save to IndexedDB
+        await savePendingAttendance({
+          id: crypto.randomUUID(),
+          personId: person.id,
+          serviceId: activeService.id,
+          method: 'DOORMAN',
+          createdAt: new Date().toISOString(),
+          personName: `${person.firstName} ${person.lastName}`,
+        })
+        setRegistered(r => ({ ...r, [person.id]: true }))
+        setPendingCount(c => c + 1)
+        showToast(`${person.firstName} guardado offline ✓`)
+        return
+      }
+
       const res = await fetch('/api/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -130,6 +212,10 @@ export default function PorteroPage() {
 
   async function saveNewPerson() {
     if (!activeService || !form.firstName.trim() || !form.lastName.trim()) return
+    if (!isOnline) {
+      showToast('Sin conexión — el registro de personas nuevas requiere internet', false)
+      return
+    }
     setSaving(true)
     try {
       const personRes = await fetch('/api/persons', {
@@ -237,9 +323,33 @@ export default function PorteroPage() {
 
       {/* Blue header */}
       <header className="bg-blue-600 text-white px-5 py-4 shadow-md shrink-0">
-        <p className="text-xs font-semibold uppercase tracking-widest opacity-70">Portero</p>
-        <h1 className="text-xl md:text-2xl font-bold truncate">{activeService?.name}</h1>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-widest opacity-70">Portero</p>
+            <h1 className="text-xl md:text-2xl font-bold truncate">{activeService?.name}</h1>
+          </div>
+          {/* Connection indicator */}
+          <div className="flex items-center gap-1.5 shrink-0 mt-1">
+            <div className={`w-2 h-2 rounded-full shrink-0 ${isOnline ? 'bg-green-400' : 'bg-yellow-400 animate-pulse'}`} />
+            <span className="text-xs opacity-90 whitespace-nowrap">
+              {isOnline
+                ? syncing ? 'Sincronizando...' : 'En línea'
+                : pendingCount > 0 ? `Sin conexión (${pendingCount} pendiente${pendingCount > 1 ? 's' : ''})` : 'Sin conexión'
+              }
+            </span>
+          </div>
+        </div>
       </header>
+
+      {/* Connection banner */}
+      {!isOnline && (
+        <div className="bg-amber-50 border-b border-amber-200 px-5 py-2.5 shrink-0">
+          <p className="text-sm font-medium text-amber-800 flex items-center gap-2">
+            <span>⚠️</span>
+            Sin conexión — los registros de miembros conocidos se guardarán localmente
+          </p>
+        </div>
+      )}
 
       {/* Search bar */}
       <div className="px-4 pt-4 pb-3 shrink-0 bg-white border-b border-gray-100">
@@ -297,7 +407,9 @@ export default function PorteroPage() {
               </div>
               <span className="ml-4 shrink-0">
                 {isRegistered ? (
-                  <span className="text-green-600 font-semibold text-sm whitespace-nowrap">Ya registrado ✓</span>
+                  <span className="text-green-600 font-semibold text-sm whitespace-nowrap">
+                    {!isOnline ? 'Guardado offline ✓' : 'Ya registrado ✓'}
+                  </span>
                 ) : isChecking ? (
                   <span className="text-blue-400 animate-pulse text-xl">···</span>
                 ) : (
@@ -314,12 +426,18 @@ export default function PorteroPage() {
             <p className="text-gray-500 text-base">
               Sin resultados para <strong>&ldquo;{query}&rdquo;</strong>
             </p>
-            <button
-              onClick={openForm}
-              className="w-full max-w-sm bg-blue-600 text-white text-lg font-semibold py-4 rounded-2xl shadow hover:bg-blue-700 active:scale-[0.98] transition-all"
-            >
-              + Registrar nueva persona
-            </button>
+            {isOnline ? (
+              <button
+                onClick={openForm}
+                className="w-full max-w-sm bg-blue-600 text-white text-lg font-semibold py-4 rounded-2xl shadow hover:bg-blue-700 active:scale-[0.98] transition-all"
+              >
+                + Registrar nueva persona
+              </button>
+            ) : (
+              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 px-4 py-3 rounded-xl text-center max-w-sm">
+                Sin conexión — no es posible registrar personas nuevas offline
+              </p>
+            )}
           </div>
         )}
 
