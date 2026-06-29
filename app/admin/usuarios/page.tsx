@@ -22,12 +22,14 @@ export default function UsuariosPage() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [editingUser, setEditingUser] = useState<User | null>(null)
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [deleting, setDeleting] = useState<string | null>(null)
 
   const role = (session?.user as { role?: string })?.role
+  const currentUserId = (session?.user as { id?: string })?.id
 
   useEffect(() => {
     fetch('/api/admin/users')
@@ -66,6 +68,38 @@ export default function UsuariosPage() {
       setUsers(u => [user, ...u])
       setShowModal(false)
       setForm(EMPTY)
+    } finally { setSaving(false) }
+  }
+
+  function openEdit(u: User) {
+    setEditingUser(u)
+    setForm({ name: u.name, email: u.email, password: '', role: u.role })
+    setError('')
+  }
+
+  function closeEdit() {
+    setEditingUser(null)
+    setForm(EMPTY)
+    setError('')
+  }
+
+  async function handleEdit() {
+    if (!editingUser || !form.name || !form.email) return
+    setSaving(true); setError('')
+    try {
+      const res = await fetch(`/api/admin/users/${editingUser.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        setError(data.error ?? 'Error al actualizar usuario')
+        return
+      }
+      const updated: User = await res.json()
+      setUsers(u => u.map(x => x.id === updated.id ? updated : x))
+      closeEdit()
     } finally { setSaving(false) }
   }
 
@@ -134,13 +168,21 @@ export default function UsuariosPage() {
                     {new Date(u.createdAt).toLocaleDateString('es')}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => handleDelete(u.id)}
-                      disabled={deleting === u.id}
-                      className="text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-40"
-                    >
-                      {deleting === u.id ? '...' : 'Eliminar'}
-                    </button>
+                    <div className="flex items-center justify-end gap-3">
+                      <button
+                        onClick={() => openEdit(u)}
+                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => handleDelete(u.id)}
+                        disabled={deleting === u.id}
+                        className="text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-40"
+                      >
+                        {deleting === u.id ? '...' : 'Eliminar'}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -149,7 +191,54 @@ export default function UsuariosPage() {
         )}
       </div>
 
-      {/* Modal */}
+      {/* Edit modal */}
+      {editingUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">Editar usuario</h2>
+              <button onClick={closeEdit} className="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-xl">✕</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className={LABEL}>Nombre</label>
+                <input className={INPUT} placeholder="Nombre completo" value={form.name} onChange={e => setField('name', e.target.value)} autoFocus />
+              </div>
+              <div>
+                <label className={LABEL}>Email</label>
+                <input type="email" className={INPUT} placeholder="correo@ejemplo.com" value={form.email} onChange={e => setField('email', e.target.value)} />
+              </div>
+              <div>
+                <label className={LABEL}>Rol</label>
+                <select
+                  className={INPUT}
+                  value={form.role}
+                  onChange={e => setField('role', e.target.value)}
+                  disabled={editingUser.id === currentUserId}
+                >
+                  {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                </select>
+                {editingUser.id === currentUserId && (
+                  <p className="text-xs text-gray-400 mt-1">No puedes cambiar tu propio rol.</p>
+                )}
+              </div>
+              <div>
+                <label className={LABEL}>Nueva contraseña <span className="font-normal text-gray-400">(dejar vacío para no cambiar)</span></label>
+                <input type="password" className={INPUT} placeholder="Nueva contraseña" value={form.password} onChange={e => setField('password', e.target.value)} />
+              </div>
+              {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+              <button onClick={closeEdit} className="flex-1 py-2.5 rounded-lg border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50">Cancelar</button>
+              <button onClick={handleEdit} disabled={saving || !form.name || !form.email} className="flex-1 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
+                {saving ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
