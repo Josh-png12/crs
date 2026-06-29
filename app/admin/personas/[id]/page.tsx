@@ -27,20 +27,53 @@ type Person = {
 }
 
 type Note = { id: string; content: string; createdAt: string; isPrivate: boolean }
+type PrayerRequest = { id: string; content: string; isActive: boolean; createdAt: string; resolvedAt: string | null }
+type PastoralVisit = { id: string; visitedAt: string; outcome: string | null; notes: string | null; createdAt: string }
+type SpecialEvent = { id: string; type: string; date: string; notes: string | null; createdAt: string }
 
 const INPUT = 'w-full px-3.5 py-2.5 rounded-lg border border-[#D1D5DB] text-[#111] bg-white text-sm placeholder:text-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-colors'
 const LABEL = 'block text-xs font-semibold text-gray-600 mb-1'
+const TEXTAREA = 'w-full px-3.5 py-2.5 rounded-lg border border-[#D1D5DB] text-[#111] bg-white text-sm placeholder:text-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 resize-none transition-colors'
+
+const SPECIAL_EVENT_LABELS: Record<string, string> = {
+  BAPTISM: 'Bautismo',
+  WEDDING: 'Boda',
+  BABY_DEDICATION: 'Presentación de niño',
+  SALVATION: 'Decisión de fe',
+  OTHER: 'Otro',
+}
+const SPECIAL_EVENT_TYPES = Object.keys(SPECIAL_EVENT_LABELS)
+
+const VISIT_OUTCOMES = ['Llamó exitoso', 'No contestó', 'Visita en persona', 'Otro']
+
+const EMPTY_VISIT = { visitedAt: new Date().toISOString().split('T')[0], outcome: VISIT_OUTCOMES[0], notes: '' }
+const EMPTY_EVENT = { type: 'BAPTISM', date: new Date().toISOString().split('T')[0], notes: '' }
 
 export default function PersonDetailPage() {
   const { id } = useParams<{ id: string }>()
 
   const [person, setPerson] = useState<Person | null>(null)
   const [notes, setNotes] = useState<Note[]>([])
+  const [prayerRequests, setPrayerRequests] = useState<PrayerRequest[]>([])
+  const [pastoralVisits, setPastoralVisits] = useState<PastoralVisit[]>([])
+  const [specialEvents, setSpecialEvents] = useState<SpecialEvent[]>([])
   const [loading, setLoading] = useState(true)
+
   const [saving, setSaving] = useState(false)
   const [newNote, setNewNote] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [toast, setToast] = useState('')
+
+  const [newPrayer, setNewPrayer] = useState('')
+  const [savingPrayer, setSavingPrayer] = useState(false)
+
+  const [showVisitModal, setShowVisitModal] = useState(false)
+  const [visitForm, setVisitForm] = useState(EMPTY_VISIT)
+  const [savingVisit, setSavingVisit] = useState(false)
+
+  const [showEventModal, setShowEventModal] = useState(false)
+  const [eventForm, setEventForm] = useState(EMPTY_EVENT)
+  const [savingEvent, setSavingEvent] = useState(false)
 
   const [form, setForm] = useState({
     firstName: '', lastName: '', phone: '', whatsapp: '', email: '',
@@ -56,9 +89,15 @@ export default function PersonDetailPage() {
     Promise.all([
       fetch(`/api/admin/persons/${id}`).then(r => r.json()),
       fetch(`/api/admin/pastoral-notes/${id}`).then(r => r.json()),
-    ]).then(([personData, notesData]) => {
+      fetch(`/api/admin/prayer-requests?personId=${id}`).then(r => r.json()),
+      fetch(`/api/admin/pastoral-visits/${id}`).then(r => r.json()),
+      fetch(`/api/admin/special-events/${id}`).then(r => r.json()),
+    ]).then(([personData, notesData, prayersData, visitsData, eventsData]) => {
       setPerson(personData)
       setNotes(notesData)
+      setPrayerRequests(Array.isArray(prayersData) ? prayersData : [])
+      setPastoralVisits(Array.isArray(visitsData) ? visitsData : [])
+      setSpecialEvents(Array.isArray(eventsData) ? eventsData : [])
       setForm({
         firstName: personData.firstName ?? '',
         lastName: personData.lastName ?? '',
@@ -163,8 +202,61 @@ export default function PersonDetailPage() {
     }
   }
 
-  function handlePrint() {
-    window.print()
+  async function handleAddPrayer() {
+    if (!newPrayer.trim()) return
+    setSavingPrayer(true)
+    try {
+      const res = await fetch('/api/admin/prayer-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ personId: id, content: newPrayer.trim() }),
+      })
+      const pr: PrayerRequest = await res.json()
+      setPrayerRequests(p => [pr, ...p])
+      setNewPrayer('')
+    } finally {
+      setSavingPrayer(false)
+    }
+  }
+
+  async function handleResolvePrayer(prId: string) {
+    const res = await fetch(`/api/admin/prayer-requests/${prId}`, { method: 'PUT' })
+    const updated: PrayerRequest = await res.json()
+    setPrayerRequests(p => p.map(x => x.id === prId ? updated : x))
+  }
+
+  async function handleAddVisit() {
+    setSavingVisit(true)
+    try {
+      const res = await fetch('/api/admin/pastoral-visits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ personId: id, ...visitForm }),
+      })
+      const visit: PastoralVisit = await res.json()
+      setPastoralVisits(v => [visit, ...v])
+      setShowVisitModal(false)
+      setVisitForm(EMPTY_VISIT)
+    } finally {
+      setSavingVisit(false)
+    }
+  }
+
+  async function handleAddEvent() {
+    setSavingEvent(true)
+    try {
+      const res = await fetch('/api/admin/special-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ personId: id, ...eventForm }),
+      })
+      const event: SpecialEvent = await res.json()
+      setSpecialEvents(e => [event, ...e])
+      setShowEventModal(false)
+      setEventForm(EMPTY_EVENT)
+    } finally {
+      setSavingEvent(false)
+    }
   }
 
   if (loading) return <div className="p-6 text-gray-400 text-sm pt-14 md:pt-6">Cargando...</div>
@@ -202,7 +294,7 @@ export default function PersonDetailPage() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <button
-            onClick={handlePrint}
+            onClick={() => window.print()}
             className="px-3 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
           >
             Imprimir historial
@@ -227,7 +319,7 @@ export default function PersonDetailPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Edit form */}
+        {/* Left column */}
         <div className="lg:col-span-2 space-y-5">
 
           {/* Información personal */}
@@ -304,11 +396,7 @@ export default function PersonDetailPage() {
                     />
                   </label>
                   {form.photoUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setField('photoUrl', '')}
-                      className="text-xs text-red-500 hover:text-red-700"
-                    >
+                    <button type="button" onClick={() => setField('photoUrl', '')} className="text-xs text-red-500 hover:text-red-700">
                       Quitar
                     </button>
                   )}
@@ -370,7 +458,7 @@ export default function PersonDetailPage() {
                 onChange={e => setNewNote(e.target.value)}
                 placeholder="Agregar nota..."
                 rows={2}
-                className="flex-1 px-3.5 py-2.5 rounded-lg border border-[#D1D5DB] text-[#111] text-sm placeholder:text-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 resize-none"
+                className={TEXTAREA + ' flex-1'}
               />
               <button
                 onClick={handleAddNote}
@@ -396,6 +484,132 @@ export default function PersonDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Peticiones de oración */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-4">
+              Peticiones de oración
+              {prayerRequests.filter(p => p.isActive).length > 0 && (
+                <span className="ml-2 text-xs font-normal bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">
+                  {prayerRequests.filter(p => p.isActive).length} activas
+                </span>
+              )}
+            </h2>
+            <div className="flex gap-2 mb-4">
+              <textarea
+                value={newPrayer}
+                onChange={e => setNewPrayer(e.target.value)}
+                placeholder="Escribe la petición..."
+                rows={2}
+                className={TEXTAREA + ' flex-1'}
+              />
+              <button
+                onClick={handleAddPrayer}
+                disabled={savingPrayer || !newPrayer.trim()}
+                className="px-4 py-2 text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg disabled:opacity-50 transition-colors self-end"
+              >
+                {savingPrayer ? '...' : 'Agregar'}
+              </button>
+            </div>
+            {prayerRequests.length === 0 ? (
+              <p className="text-gray-400 text-sm">Sin peticiones registradas</p>
+            ) : (
+              <div className="space-y-2">
+                {prayerRequests.map(p => (
+                  <div key={p.id} className={`border rounded-lg p-3 flex items-start justify-between gap-3 ${p.isActive ? 'border-amber-100 bg-amber-50/40' : 'border-gray-100'}`}>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm ${p.isActive ? 'text-gray-800' : 'text-gray-400 line-through'}`}>{p.content}</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {new Date(p.createdAt).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {!p.isActive && p.resolvedAt && (
+                          <span className="ml-2 text-green-600">· Resuelta {new Date(p.resolvedAt).toLocaleDateString('es', { day: 'numeric', month: 'short' })}</span>
+                        )}
+                      </p>
+                    </div>
+                    {p.isActive && (
+                      <button
+                        onClick={() => handleResolvePrayer(p.id)}
+                        className="shrink-0 text-xs text-green-700 bg-green-50 hover:bg-green-100 px-2 py-1 rounded-lg font-medium transition-colors"
+                      >
+                        Resuelta
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Visitas pastorales */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-gray-700">
+                Visitas pastorales
+                <span className="ml-2 text-xs font-normal text-gray-400">({pastoralVisits.length})</span>
+              </h2>
+              <button
+                onClick={() => setShowVisitModal(true)}
+                className="text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                + Registrar visita
+              </button>
+            </div>
+            {pastoralVisits.length === 0 ? (
+              <p className="text-gray-400 text-sm">Sin visitas registradas</p>
+            ) : (
+              <div className="space-y-2">
+                {pastoralVisits.map(v => (
+                  <div key={v.id} className="border border-gray-100 rounded-lg p-3">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-xs font-medium text-gray-500">
+                        {new Date(v.visitedAt).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                      {v.outcome && (
+                        <span className="text-xs font-medium bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{v.outcome}</span>
+                      )}
+                    </div>
+                    {v.notes && <p className="text-sm text-gray-700">{v.notes}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Eventos especiales */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-gray-700">
+                Eventos especiales
+                <span className="ml-2 text-xs font-normal text-gray-400">({specialEvents.length})</span>
+              </h2>
+              <button
+                onClick={() => setShowEventModal(true)}
+                className="text-xs font-medium text-purple-600 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                + Registrar evento
+              </button>
+            </div>
+            {specialEvents.length === 0 ? (
+              <p className="text-gray-400 text-sm">Sin eventos registrados</p>
+            ) : (
+              <div className="space-y-2">
+                {specialEvents.map(e => (
+                  <div key={e.id} className="border border-gray-100 rounded-lg p-3">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-xs font-medium bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
+                        {SPECIAL_EVENT_LABELS[e.type] ?? e.type}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        {new Date(e.date).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      </span>
+                    </div>
+                    {e.notes && <p className="text-sm text-gray-700 mt-1">{e.notes}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
         </div>
 
         {/* Attendance history */}
@@ -423,6 +637,74 @@ export default function PersonDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Modal: Registrar visita pastoral */}
+      {showVisitModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">Registrar visita pastoral</h2>
+              <button onClick={() => setShowVisitModal(false)} className="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-xl">✕</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className={LABEL}>Fecha</label>
+                <input type="date" className={INPUT} value={visitForm.visitedAt} onChange={e => setVisitForm(f => ({ ...f, visitedAt: e.target.value }))} />
+              </div>
+              <div>
+                <label className={LABEL}>Resultado</label>
+                <select className={INPUT} value={visitForm.outcome} onChange={e => setVisitForm(f => ({ ...f, outcome: e.target.value }))}>
+                  {VISIT_OUTCOMES.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={LABEL}>Notas</label>
+                <textarea rows={3} className={TEXTAREA} placeholder="Observaciones..." value={visitForm.notes} onChange={e => setVisitForm(f => ({ ...f, notes: e.target.value }))} />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+              <button onClick={() => setShowVisitModal(false)} className="flex-1 py-2.5 rounded-lg border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50">Cancelar</button>
+              <button onClick={handleAddVisit} disabled={savingVisit || !visitForm.visitedAt} className="flex-1 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
+                {savingVisit ? 'Guardando...' : 'Registrar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Registrar evento especial */}
+      {showEventModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">Registrar evento especial</h2>
+              <button onClick={() => setShowEventModal(false)} className="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-xl">✕</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className={LABEL}>Tipo de evento</label>
+                <select className={INPUT} value={eventForm.type} onChange={e => setEventForm(f => ({ ...f, type: e.target.value }))}>
+                  {SPECIAL_EVENT_TYPES.map(t => <option key={t} value={t}>{SPECIAL_EVENT_LABELS[t]}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={LABEL}>Fecha</label>
+                <input type="date" className={INPUT} value={eventForm.date} onChange={e => setEventForm(f => ({ ...f, date: e.target.value }))} />
+              </div>
+              <div>
+                <label className={LABEL}>Notas</label>
+                <textarea rows={3} className={TEXTAREA} placeholder="Detalles del evento..." value={eventForm.notes} onChange={e => setEventForm(f => ({ ...f, notes: e.target.value }))} />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+              <button onClick={() => setShowEventModal(false)} className="flex-1 py-2.5 rounded-lg border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50">Cancelar</button>
+              <button onClick={handleAddEvent} disabled={savingEvent || !eventForm.date} className="flex-1 py-2.5 rounded-lg bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700 disabled:opacity-50">
+                {savingEvent ? 'Guardando...' : 'Registrar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (

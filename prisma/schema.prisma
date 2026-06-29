@@ -46,6 +46,8 @@ model Person {
   groupMembers    GroupMember[]
   attendances     Attendance[]
   pastoralVisits  PastoralVisit[]
+  prayerRequests  PrayerRequest[]
+  specialEvents   SpecialEvent[]
 
   @@map("persons")
 }
@@ -183,6 +185,41 @@ model PastoralVisit {
   outcome     String?
 
   @@map("pastoral_visits")
+}
+
+// ─── PETICIONES DE ORACIÓN ──────────────────────────────
+
+model PrayerRequest {
+  id          String    @id @default(cuid())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  personId    String
+  person      Person    @relation(fields: [personId], references: [id])
+  content     String
+  isActive    Boolean   @default(true)
+  resolvedAt  DateTime?
+  @@map("prayer_requests")
+}
+
+// ─── EVENTOS ESPECIALES ─────────────────────────────────
+
+enum SpecialEventType {
+  BAPTISM
+  WEDDING
+  BABY_DEDICATION
+  SALVATION
+  OTHER
+}
+
+model SpecialEvent {
+  id        String           @id @default(cuid())
+  createdAt DateTime         @default(now())
+  type      SpecialEventType
+  date      DateTime
+  notes     String?
+  personId  String
+  person    Person           @relation(fields: [personId], references: [id])
+  @@map("special_events")
 }
 
 // ─── USUARIOS ADMIN ─────────────────────────────────────────

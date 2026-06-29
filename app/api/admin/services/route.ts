@@ -18,12 +18,21 @@ export async function POST(request: NextRequest) {
   const session = await auth()
   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { name, type, date } = await request.json()
+  try {
+    const { name, type, date } = await request.json()
 
-  const service = await prisma.service.create({
-    data: { name, type, date: new Date(date) },
-    include: { _count: { select: { attendances: true } } },
-  })
+    if (!name || !type || !date) {
+      return Response.json({ error: 'name, type y date son requeridos' }, { status: 400 })
+    }
 
-  return Response.json(service, { status: 201 })
+    const service = await prisma.service.create({
+      data: { name, type, date: new Date(date) },
+      include: { _count: { select: { attendances: true } } },
+    })
+
+    return Response.json(service, { status: 201 })
+  } catch (err) {
+    console.error('POST /api/admin/services error:', err)
+    return Response.json({ error: 'Error al crear el servicio' }, { status: 500 })
+  }
 }

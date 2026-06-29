@@ -237,12 +237,20 @@ export default function ServiciosPage() {
                   {new Date(selectedService.date).toLocaleDateString('es', { day: 'numeric', month: 'long' })}
                 </p>
               </div>
-              <button
-                onClick={() => setSelectedService(null)}
-                className="text-gray-400 hover:text-gray-600 text-xl font-light"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="text-xs font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  Exportar PDF
+                </button>
+                <button
+                  onClick={() => setSelectedService(null)}
+                  className="text-gray-400 hover:text-gray-600 text-xl font-light"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
             <div className="overflow-y-auto flex-1">
               {/* QR Code */}
@@ -283,6 +291,45 @@ export default function ServiciosPage() {
           </div>
         </div>
       )}
+
+      {/* Print-only content */}
+      {selectedService && (
+        <div id="csr-attendance-print" className="hidden">
+          <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{selectedService.name}</h1>
+          <p style={{ fontSize: 13, color: '#555', marginBottom: 16 }}>
+            {new Date(selectedService.date).toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            {' · '}{attendees.length} asistentes
+          </p>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #ddd' }}>
+                <th style={{ textAlign: 'left', paddingBottom: 6, paddingRight: 16 }}>#</th>
+                <th style={{ textAlign: 'left', paddingBottom: 6, paddingRight: 16 }}>Nombre</th>
+                <th style={{ textAlign: 'left', paddingBottom: 6, paddingRight: 16 }}>Tipo</th>
+                <th style={{ textAlign: 'left', paddingBottom: 6 }}>Método</th>
+              </tr>
+            </thead>
+            <tbody>
+              {attendees.map((a, i) => (
+                <tr key={a.id} style={{ borderBottom: '1px solid #eee' }}>
+                  <td style={{ padding: '6px 16px 6px 0', color: '#888' }}>{i + 1}</td>
+                  <td style={{ padding: '6px 16px 6px 0', fontWeight: 500 }}>{a.person.firstName} {a.person.lastName}</td>
+                  <td style={{ padding: '6px 16px 6px 0', color: '#555' }}>{a.person.type === 'MEMBER' ? 'Miembro' : 'Visitante'}</td>
+                  <td style={{ padding: '6px 0', color: '#555' }}>{a.method}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          #csr-attendance-print, #csr-attendance-print * { visibility: visible; }
+          #csr-attendance-print { display: block !important; position: fixed; top: 24px; left: 24px; right: 24px; }
+        }
+      `}</style>
     </div>
   )
 }

@@ -16,6 +16,7 @@ async function getDashboardData() {
     personsWithBirthday,
     topInviters,
     visitorsWithCount,
+    activePrayerRequests,
   ] = await Promise.all([
     prisma.person.count({ where: { type: 'MEMBER', status: 'ACTIVE' } }),
     prisma.person.count({ where: { type: 'VISITOR' } }),
@@ -52,6 +53,12 @@ async function getDashboardData() {
     prisma.person.findMany({
       where: { type: 'VISITOR', attendances: { some: {} } },
       include: { _count: { select: { attendances: true } } },
+    }),
+    prisma.prayerRequest.findMany({
+      where: { isActive: true },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      include: { person: { select: { id: true, firstName: true, lastName: true } } },
     }),
   ])
 
@@ -101,6 +108,7 @@ async function getDashboardData() {
     retentionRate,
     retainedVisitors,
     totalVisitorsAttended,
+    activePrayerRequests,
   }
 }
 
@@ -224,6 +232,41 @@ export default async function DashboardPage() {
               />
             </div>
           </div>
+        </div>
+
+        {/* Active prayer requests */}
+        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <h2 className="text-sm font-semibold text-gray-700 mb-4">
+            🙏 Peticiones de oración activas
+            <span className="ml-2 text-xs font-normal bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">
+              {data.activePrayerRequests.length}
+            </span>
+          </h2>
+          {data.activePrayerRequests.length === 0 ? (
+            <p className="text-gray-400 text-sm">Sin peticiones activas</p>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {data.activePrayerRequests.map(pr => (
+                <div key={pr.id} className="py-3 flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center text-xs font-bold text-amber-700 shrink-0 mt-0.5">
+                      {pr.person.firstName[0]}{pr.person.lastName[0]}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">{pr.person.firstName} {pr.person.lastName}</p>
+                      <p className="text-sm text-gray-500 mt-0.5">{pr.content}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {new Date(pr.createdAt).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
+                  </div>
+                  <Link href={`/admin/personas/${pr.person.id}`} className="shrink-0 text-xs text-blue-600 hover:text-blue-800 font-medium">
+                    Ver ficha →
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Inactive members */}
