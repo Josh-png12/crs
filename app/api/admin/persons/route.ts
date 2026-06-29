@@ -29,8 +29,16 @@ export async function POST(request: NextRequest) {
   const session = await auth()
   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const data = await request.json()
+  try {
+    const data = await request.json()
 
-  const person = await prisma.person.create({ data })
-  return Response.json(person, { status: 201 })
+    if (data.birthDate) data.birthDate = new Date(data.birthDate)
+    if (data.joinedAt) data.joinedAt = new Date(data.joinedAt)
+
+    const person = await prisma.person.create({ data })
+    return Response.json(person, { status: 201 })
+  } catch (err) {
+    console.error('POST /api/admin/persons error:', err)
+    return Response.json({ error: 'Error al crear persona' }, { status: 500 })
+  }
 }
